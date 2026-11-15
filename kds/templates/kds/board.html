@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kitchen Display</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #1F1B16;
+            --paper: #FBF4E8;
+            --paper-card: #FFFFFF;
+            --ember: #E8590C;
+            --basil: #2F6B3C;
+            --clay: #B23A2E;
+            --steel: #4A5A66;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--paper);
+            font-family: 'Inter', sans-serif;
+            color: var(--ink);
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 32px;
+            background: var(--ink);
+            border-bottom: 4px solid var(--ember);
+        }
+        .wordmark {
+            font-family: 'Oswald', sans-serif;
+            font-weight: 700;
+            font-size: 26px;
+            letter-spacing: 0.5px;
+            color: var(--paper);
+            text-transform: uppercase;
+        }
+        .wordmark span { color: var(--ember); }
+        header .right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 15px;
+            color: #cfc6b8;
+        }
+        header .right strong { color: var(--paper); }
+        header a {
+            color: var(--paper);
+            background: var(--clay);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 7px 14px;
+            border-radius: 20px;
+        }
+
+        .rail {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 22px;
+            padding: 28px;
+            align-items: flex-start;
+        }
+
+        .ticket {
+            width: 300px;
+            background: var(--paper-card);
+            border-radius: 2px 2px 6px 6px;
+            box-shadow: 0 3px 10px rgba(31,27,22,0.12);
+            position: relative;
+            padding-top: 14px;
+        }
+        /* torn-paper top edge */
+        .ticket::before {
+            content: '';
+            position: absolute;
+            top: -8px; left: 0; right: 0; height: 10px;
+            background: linear-gradient(135deg, var(--paper-card) 50%, transparent 50%),
+                        linear-gradient(45deg, var(--paper-card) 50%, transparent 50%);
+            background-size: 14px 14px;
+            background-position: 0 0, 0 0;
+        }
+        /* status spine on the left edge instead of a full colored border */
+        .spine {
+            position: absolute;
+            top: 4px; bottom: 0; left: 0;
+            width: 6px;
+            border-radius: 0 0 0 6px;
+        }
+        .status-pending .spine, .status-accepted .spine { background: var(--steel); }
+        .status-preparing .spine { background: var(--ember); }
+        .status-ready .spine { background: var(--basil); animation: pulse 1.6s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+        .ticket-body { padding: 14px 18px 18px 22px; }
+        .ticket-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 2px;
+        }
+        .table-number {
+            font-family: 'Oswald', sans-serif;
+            font-weight: 700;
+            font-size: 30px;
+            letter-spacing: 0.5px;
+        }
+        .order-age { font-size: 12px; color: #8a8276; }
+        .customer { font-size: 13px; color: var(--steel); margin-bottom: 10px; font-style: italic; }
+
+        .item-row {
+            border-top: 1px dashed #ddd5c6;
+            padding: 9px 0;
+        }
+        .item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .item-name { font-size: 16px; font-weight: 600; }
+        .item-notes { font-size: 12px; color: var(--ember); margin-top: 2px; font-weight: 500; }
+
+        .pill {
+            font-family: 'Oswald', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            padding: 3px 9px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .pill-pending, .pill-accepted { background: #eef1f2; color: var(--steel); }
+        .pill-preparing { background: #fdeadf; color: var(--ember); }
+        .pill-ready { background: #e6efe8; color: var(--basil); }
+        .pill-served { background: #e1eceb; color: #1F7A6C; }
+        .pill-cancelled { background: #f6e4e1; color: var(--clay); text-decoration: line-through; }
+
+        .action-btn {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Oswald', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .action-btn:hover { opacity: 0.88; }
+        .btn-preparing { background: var(--ember); color: #fff; }
+        .btn-ready { background: var(--basil); color: #fff; }
+
+        .empty-state {
+            width: 100%;
+            text-align: center;
+            padding: 100px 0;
+            color: #b3a998;
+            font-family: 'Oswald', sans-serif;
+            font-size: 22px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="wordmark">Kitchen<span>•</span>Display</div>
+        <div class="right">
+            <span><strong>{{ user.first_name|default:user.username }}</strong></span>
+            <span id="order-count">{{ orders|length }} active order{{ orders|length|pluralize }}</span>
+            <a href="{% url 'kds_logout' %}">Log out</a>
+        </div>
+    </header>
+
+    <div class="rail" id="board">
+        {% if not orders %}
+            <div class="empty-state">ALL TICKETS CLEARED</div>
+        {% endif %}
+
+        {% for order in orders %}
+        <div class="ticket status-{{ order.status }}">
+            <div class="spine"></div>
+            <div class="ticket-body">
+                <div class="ticket-head">
+                    <span class="table-number">T{{ order.table.number }}</span>
+                    <span class="order-age">{{ order.created_at|timesince }} ago</span>
+                </div>
+                {% if order.customer_name %}<div class="customer">{{ order.customer_name }}</div>{% endif %}
+
+                {% for item in order.items.all %}
+                    {% if item.status != 'cancelled' %}
+                    <div class="item-row">
+                        <div class="item-top">
+                            <span class="item-name">{{ item.quantity }}× {{ item.menu_item.name }}</span>
+                            <span class="pill pill-{{ item.status }}">{{ item.get_status_display }}</span>
+                        </div>
+                        {% if item.notes %}<div class="item-notes">⚠ {{ item.notes }}</div>{% endif %}
+
+                        {% if item.status == 'pending' %}
+                        <button class="action-btn btn-preparing" onclick="postAction('{% url 'kds_start_preparing' item.id %}', this)">Start Preparing</button>
+                        {% elif item.status == 'preparing' %}
+                        <button class="action-btn btn-ready" onclick="postAction('{% url 'kds_mark_ready' item.id %}', this)">Mark Ready</button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function getCookie(name) {
+            const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return match ? decodeURIComponent(match[2]) : null;
+        }
+
+        async function refreshBoard() {
+            try {
+                const response = await fetch(window.location.pathname, { credentials: 'same-origin' });
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const newBoard = doc.getElementById('board');
+                const newCount = doc.getElementById('order-count');
+                if (newBoard) document.getElementById('board').innerHTML = newBoard.innerHTML;
+                if (newCount) document.getElementById('order-count').textContent = newCount.textContent;
+            } catch (e) {
+                console.warn('Board refresh failed, will retry', e);
+            }
+        }
+
+        async function postAction(url, button) {
+            button.disabled = true;
+            button.textContent = '...';
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                });
+            } catch (e) {
+                console.warn('Action failed', e);
+            }
+            refreshBoard();
+        }
+
+        setInterval(refreshBoard, 5000);
+    </script>
+</body>
+</html>

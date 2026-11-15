@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chef Menu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #1F1B16; --paper: #FBF4E8; --ember: #E8590C;
+            --basil: #2F6B3C; --clay: #B23A2E; --steel: #4A5A66;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--paper); font-family: 'Inter', sans-serif; color: var(--ink); }
+
+        header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 32px; background: var(--ink); border-bottom: 4px solid var(--ember);
+        }
+        .wordmark { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: 0.5px; color: var(--paper); text-transform: uppercase; }
+        .wordmark span { color: var(--ember); }
+        header .right { display: flex; align-items: center; gap: 16px; font-size: 15px; color: #cfc6b8; }
+        header .right strong { color: var(--paper); }
+        header a.link {
+            color: var(--paper); background: var(--clay); text-decoration: none;
+            font-weight: 600; font-size: 13px; padding: 7px 14px; border-radius: 20px;
+        }
+        header a.add-btn {
+            color: #fff; background: var(--ember); text-decoration: none;
+            font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 14px;
+            letter-spacing: 0.3px; padding: 9px 18px; border-radius: 6px; text-transform: uppercase;
+        }
+
+        .category-title {
+            font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 600;
+            letter-spacing: 0.4px; text-transform: uppercase; color: var(--steel);
+            margin: 28px 28px 10px 28px;
+        }
+        .grid { display: flex; flex-wrap: wrap; gap: 20px; padding: 0 28px; }
+
+        .recipe-card {
+            width: 260px; background: #fff; border-radius: 8px;
+            box-shadow: 0 3px 12px rgba(31,27,22,0.1); position: relative; overflow: hidden;
+        }
+        .recipe-card.unavailable { opacity: 0.55; }
+        /* corner fold, like a recipe card box */
+        .fold {
+            position: absolute; top: 0; right: 0; width: 0; height: 0;
+            border-style: solid; border-width: 0 26px 26px 0;
+            border-color: transparent var(--paper) transparent transparent;
+        }
+        .cover {
+            width: 100%; height: 130px; object-fit: cover; background: #ece4d2; display: block;
+        }
+        .cover-placeholder {
+            width: 100%; height: 130px; background: #ece4d2; display: flex;
+            align-items: center; justify-content: center; font-size: 34px; color: #c7bba0;
+        }
+        .card-body { padding: 14px 16px; }
+        .meal-name { font-family: 'Oswald', sans-serif; font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+        .meal-price { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: var(--ember); margin-bottom: 8px; }
+        .allergen-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; min-height: 20px; }
+        .pill {
+            font-size: 10px; font-weight: 600; letter-spacing: 0.3px; padding: 3px 8px;
+            border-radius: 10px; background: #f6e4e1; color: var(--clay); text-transform: uppercase;
+        }
+        .unavailable-tag {
+            font-size: 10px; font-weight: 700; letter-spacing: 0.3px; color: var(--steel);
+            text-transform: uppercase; margin-bottom: 8px; display: block;
+        }
+        .card-actions { display: flex; gap: 8px; }
+        .card-actions a, .card-actions button {
+            flex: 1; text-align: center; font-family: 'Oswald', sans-serif; font-size: 12px;
+            font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; padding: 8px;
+            border-radius: 5px; text-decoration: none; border: none; cursor: pointer;
+        }
+        .btn-edit { background: var(--steel); color: #fff; }
+        .btn-delete { background: #f6e4e1; color: var(--clay); }
+
+        .empty-state { padding: 80px 28px; text-align: center; color: #b3a998; font-family: 'Oswald', sans-serif; font-size: 20px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="wordmark">Chef<span>•</span>Menu</div>
+        <div class="right">
+            <span><strong>{{ user.first_name|default:user.username }}</strong></span>
+            <a class="add-btn" href="{% url 'chef_meal_new' %}">+ Add Meal</a>
+            <a class="link" href="{% url 'chef_logout' %}">Log out</a>
+        </div>
+    </header>
+
+    {% if not categories %}
+        <div class="empty-state">No categories yet — add one in Django admin first.</div>
+    {% endif %}
+
+    {% for category in categories %}
+    <div class="category-title">{{ category.name }}</div>
+    <div class="grid">
+        {% for item in category.items.all %}
+        <div class="recipe-card {% if not item.available %}unavailable{% endif %}">
+            <div class="fold"></div>
+            {% with cover=item.images.first %}
+                {% if cover %}
+                    <img class="cover" src="{{ cover.image.url }}" alt="{{ item.name }}">
+                {% else %}
+                    <div class="cover-placeholder">🍽</div>
+                {% endif %}
+            {% endwith %}
+            <div class="card-body">
+                <div class="meal-name">{{ item.name }}</div>
+                <div class="meal-price">UGX {{ item.price|floatformat:0 }}</div>
+                {% if not item.available %}<span class="unavailable-tag">Unavailable</span>{% endif %}
+                <div class="allergen-row">
+                    {% for allergen in item.allergens.all %}
+                        <span class="pill">{{ allergen.name }}</span>
+                    {% endfor %}
+                </div>
+                <div class="card-actions">
+                    <a class="btn-edit" href="{% url 'chef_meal_edit' item.id %}">Edit</a>
+                    <form method="post" action="{% url 'chef_meal_delete' item.id %}" style="flex:1;margin:0;"
+                          onsubmit="return confirm('Delete {{ item.name }}? This cannot be undone.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-delete" style="width:100%;">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</body>
+</html>

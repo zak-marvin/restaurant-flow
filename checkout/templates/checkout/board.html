@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Checkout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #1F1B16; --paper: #FBF4E8; --ember: #E8590C;
+            --basil: #2F6B3C; --clay: #B23A2E; --steel: #4A5A66;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--paper); font-family: 'Inter', sans-serif; color: var(--ink); }
+
+        header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 32px; background: var(--ink); border-bottom: 4px solid var(--ember);
+        }
+        .wordmark {
+            font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 26px;
+            letter-spacing: 0.5px; color: var(--paper); text-transform: uppercase;
+        }
+        .wordmark span { color: var(--ember); }
+        header .right { display: flex; align-items: center; gap: 20px; font-size: 15px; color: #cfc6b8; }
+        header .right strong { color: var(--paper); }
+        header a {
+            color: var(--paper); background: var(--clay); text-decoration: none;
+            font-weight: 600; font-size: 13px; padding: 7px 14px; border-radius: 20px;
+        }
+
+        .board { display: flex; flex-wrap: wrap; gap: 22px; padding: 28px; }
+
+        .receipt {
+            width: 340px;
+            background: #fff;
+            border-radius: 3px;
+            box-shadow: 0 3px 12px rgba(31,27,22,0.12);
+            border-top: 3px solid var(--steel);
+            position: relative;
+        }
+        .receipt.ready { border-top-color: var(--basil); }
+        .receipt-body { padding: 20px 22px; }
+
+        .bill-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+        .table-number { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: 0.5px; }
+        .status-note {
+            font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+            color: var(--ember); background: #fdeadf; padding: 3px 8px; border-radius: 3px;
+        }
+
+        .order-block { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #ddd5c6; }
+        .order-id { font-size: 11px; color: #8a8276; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .line-item {
+            display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .line-item span:first-child { font-family: 'Inter', sans-serif; }
+
+        /* perforated tear line above the total, like a real receipt */
+        .perforation {
+            height: 1px; margin: 14px 0;
+            background-image: repeating-linear-gradient(to right, #ccc2ad 0, #ccc2ad 5px, transparent 5px, transparent 10px);
+        }
+
+        .total-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-family: 'IBM Plex Mono', monospace; font-weight: 700; margin-bottom: 16px;
+        }
+        .total-row .label { font-family: 'Oswald', sans-serif; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--steel); }
+        .total-row .amount { font-size: 22px; color: var(--ink); }
+
+        select, input[type="number"], input[type="tel"] {
+            width: 100%; padding: 11px 12px; margin-bottom: 8px; border-radius: 6px;
+            border: 1.5px solid #e3dccb; background: var(--paper); color: var(--ink);
+            font-size: 14px; font-family: 'Inter', sans-serif;
+        }
+        select:focus, input:focus { outline: none; border-color: var(--ember); }
+        .cash-fields, .momo-fields { margin-bottom: 4px; }
+        .change-display { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; margin-bottom: 8px; min-height: 20px; }
+
+        .settle-btn {
+            width: 100%; margin-top: 6px; padding: 13px; border: none; border-radius: 6px;
+            font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600;
+            letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
+            background: var(--basil); color: #fff; transition: opacity 0.15s;
+        }
+        .settle-btn:hover { opacity: 0.88; }
+        .settle-btn:disabled { background: #ddd5c6; color: #9b9282; cursor: not-allowed; }
+
+        .empty-state {
+            width: 100%; text-align: center; padding: 100px 0; color: #b3a998;
+            font-family: 'Oswald', sans-serif; font-size: 22px; letter-spacing: 0.5px;
+        }
+        .toast {
+            position: fixed; bottom: 24px; right: 24px; background: var(--basil); color: #fff;
+            padding: 16px 24px; border-radius: 6px; font-weight: 600; font-family: 'Inter', sans-serif;
+            display: none; box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+        .toast.error { background: var(--clay); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="wordmark">Check<span>•</span>Out</div>
+        <div class="right">
+            <span><strong>{{ user.first_name|default:user.username }}</strong></span>
+            <span id="bill-count">{{ bills|length }} table{{ bills|length|pluralize }} with a bill</span>
+            <a href="{% url 'checkout_logout' %}">Log out</a>
+        </div>
+    </header>
+
+    <div class="board" id="board">
+        {% if not bills %}
+            <div class="empty-state">NO OPEN BILLS</div>
+        {% endif %}
+
+        {% for bill in bills %}
+        <div class="receipt {% if bill.ready_to_settle %}ready{% endif %}" data-table-id="{{ bill.table.id }}" data-total="{{ bill.total }}">
+            <div class="receipt-body">
+                <div class="bill-head">
+                    <span class="table-number">Table {{ bill.table.number }}</span>
+                    {% if not bill.ready_to_settle %}<span class="status-note">Awaiting Service</span>{% endif %}
+                    {% if bill.pending_payment %}<span class="status-note">⏳ Pending</span>{% endif %}
+                </div>
+
+                {% for order in bill.orders %}
+                <div class="order-block">
+                    <div class="order-id">Order #{{ order.id }} — {{ order.get_status_display }}</div>
+                    {% for item in order.items.all %}
+                        {% if item.status != 'cancelled' %}
+                        <div class="line-item">
+                            <span>{{ item.quantity }}× {{ item.menu_item.name }}</span>
+                            <span>{{ item.subtotal|floatformat:0 }}</span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <div class="perforation"></div>
+
+                <div class="total-row">
+                    <span class="label">Total · UGX</span>
+                    <span class="amount">{{ bill.total|floatformat:0 }}</span>
+                </div>
+
+                <select class="method-select" onchange="onMethodChange(this)">
+                    {% for value, label in methods %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+
+                <div class="cash-fields">
+                    <input type="number" class="tendered-input" placeholder="Amount handed in (UGX)" oninput="updateChange(this)">
+                    <div class="change-display"></div>
+                </div>
+
+                <div class="momo-fields" style="display:none;">
+                    <input type="tel" class="phone-input" placeholder="Customer phone, e.g. 0772123456 or 256772123456">
+                    <select class="network-select">
+                        <option value="MTN">MTN Mobile Money</option>
+                        <option value="AIRTEL">Airtel Money</option>
+                    </select>
+                </div>
+
+                <button class="settle-btn" {% if not bill.ready_to_settle or bill.pending_payment %}disabled{% endif %}
+                        onclick="settleBill({{ bill.table.id }}, {{ bill.table.number }}, {{ bill.total }}, this)">
+                    Settle Bill — UGX {{ bill.total|floatformat:0 }}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(name) {
+            const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return match ? decodeURIComponent(match[2]) : null;
+        }
+
+        function showToast(message, isError) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
+        }
+
+        let userInteracting = false;
+        let interactionTimer = null;
+
+        function markInteracting() {
+            userInteracting = true;
+            clearTimeout(interactionTimer);
+            interactionTimer = setTimeout(() => { userInteracting = false; }, 4000);
+        }
+
+        document.getElementById('board').addEventListener('input', markInteracting);
+        document.getElementById('board').addEventListener('change', markInteracting);
+        document.getElementById('board').addEventListener('focusin', markInteracting);
+
+        async function refreshBoard(force = false) {
+            if (!force && userInteracting) return;
+            try {
+                const response = await fetch(window.location.pathname, { credentials: 'same-origin' });
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const newBoard = doc.getElementById('board');
+                const newCount = doc.getElementById('bill-count');
+                if (newBoard) document.getElementById('board').innerHTML = newBoard.innerHTML;
+                if (newCount) document.getElementById('bill-count').textContent = newCount.textContent;
+            } catch (e) {
+                console.warn('Board refresh failed, will retry', e);
+            }
+        }
+
+        function onMethodChange(select) {
+            const card = select.closest('.receipt');
+            card.querySelector('.cash-fields').style.display = select.value === 'cash' ? 'block' : 'none';
+            card.querySelector('.momo-fields').style.display = select.value === 'mobile_money' ? 'block' : 'none';
+        }
+
+        function updateChange(input) {
+            const card = input.closest('.receipt');
+            const total = parseFloat(card.dataset.total);
+            const tendered = parseFloat(input.value) || 0;
+            const display = card.querySelector('.change-display');
+            if (!input.value) { display.textContent = ''; return; }
+            const change = tendered - total;
+            if (change < 0) {
+                display.textContent = `Short by UGX ${Math.abs(change).toLocaleString()}`;
+                display.style.color = '#B23A2E';
+            } else {
+                display.textContent = `Change due: UGX ${change.toLocaleString()}`;
+                display.style.color = '#2F6B3C';
+            }
+        }
+
+        async function settleBill(tableId, tableNumber, total, button) {
+            const card = button.closest('.receipt');
+            const method = card.querySelector('.method-select').value;
+            const formData = new FormData();
+            formData.append('method', method);
+
+            if (method === 'cash') {
+                const tendered = parseFloat(card.querySelector('.tendered-input').value);
+                if (!tendered || tendered < total) {
+                    showToast('Enter an amount handed in that covers the total.', true);
+                    return;
+                }
+                formData.append('amount_tendered', tendered);
+            } else if (method === 'mobile_money') {
+                const phone = card.querySelector('.phone-input').value.trim();
+                const network = card.querySelector('.network-select').value;
+                if (!phone) {
+                    showToast("Enter the customer's phone number.", true);
+                    return;
+                }
+                formData.append('phone_number', phone);
+                formData.append('network', network);
+            }
+
+            const confirmMsg = method === 'mobile_money'
+                ? `Send a UGX ${total.toLocaleString()} mobile money request to this number?`
+                : `Settle Table ${tableNumber} for UGX ${total.toLocaleString()} via ${method.replace('_', ' ')}?`;
+            if (!confirm(confirmMsg)) return;
+
+            button.disabled = true;
+            button.textContent = 'Processing...';
+
+            try {
+                const response = await fetch(`/checkout/table/${tableId}/settle/`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.error || 'Could not settle bill.', true);
+                    button.disabled = false;
+                    button.textContent = `Settle Bill — UGX ${total.toLocaleString()}`;
+                    return;
+                }
+
+                if (data.status === 'pending') {
+                    button.textContent = 'Waiting for approval...';
+                    pollPaymentStatus(data.payment_id, tableNumber, total, button);
+                } else {
+                    let msg = `Table ${tableNumber} settled — UGX ${total.toLocaleString()}`;
+                    if (data.change_given && parseFloat(data.change_given) > 0) {
+                        msg += ` (change: UGX ${parseFloat(data.change_given).toLocaleString()})`;
+                    }
+                    showToast(msg, false);
+                    refreshBoard(true);
+                }
+            } catch (e) {
+                showToast('Network error — please try again.', true);
+                button.disabled = false;
+                button.textContent = `Settle Bill — UGX ${total.toLocaleString()}`;
+            }
+        }
+
+        async function pollPaymentStatus(paymentId, tableNumber, total, button, attempt = 0) {
+            if (attempt > 30) {
+                showToast('Still waiting on the customer — check again shortly.', true);
+                if (button.isConnected) {
+                    button.disabled = false;
+                    button.textContent = `Settle Bill — UGX ${total.toLocaleString()}`;
+                }
+                return;
+            }
+            try {
+                const response = await fetch(`/checkout/payment/${paymentId}/status/`, { credentials: 'same-origin' });
+                const data = await response.json();
+                if (data.status === 'successful') {
+                    showToast(`Table ${tableNumber} settled via mobile money — UGX ${total.toLocaleString()}`, false);
+                    refreshBoard(true);
+                    return;
+                } else if (data.status === 'failed') {
+                    showToast('Mobile money payment failed or was declined.', true);
+                    refreshBoard(true);
+                    return;
+                }
+            } catch (e) {
+                // transient network blip — keep polling
+            }
+            setTimeout(() => pollPaymentStatus(paymentId, tableNumber, total, button, attempt + 1), 3000);
+        }
+
+        setInterval(refreshBoard, 5000);
+    </script>
+</body>
+</html>
