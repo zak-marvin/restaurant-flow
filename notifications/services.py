@@ -21,7 +21,8 @@ try:
         cred_path = getattr(settings, 'FCM_CREDENTIALS_PATH', None)
         if cred_path:
             firebase_admin.initialize_app(credentials.Certificate(cred_path))
-    FCM_AVAILABLE = True
+    # Only "available" if an app was actually initialised with credentials.
+    FCM_AVAILABLE = bool(firebase_admin._apps)
 except Exception:
     FCM_AVAILABLE = False
 
@@ -39,9 +40,15 @@ def notify_role(role, title, body, data=None):
         logger.info(f"[FCM disabled] Would notify role={role}: {title} - {body} -> {len(tokens)} device(s)")
         return
 
-    message = messaging.MulticastMessage(
-        notification=messaging.Notification(title=title, body=body),
-        data=data or {},
-        tokens=tokens,
-    )
-    messaging.send_multicast(message)
+    try:
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body),
+            data=data or {},
+            tokens=tokens,
+        )
+        # send_multicast was removed from firebase-admin; send_each_for_multicast replaces it.
+        messaging.send_each_for_multicast(message)
+    except Exception:
+        # A failed push must never break the request that triggered it
+        # (for example placing an order).
+        logger.exception("FCM send failed for role=%s", role)

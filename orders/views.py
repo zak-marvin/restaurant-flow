@@ -15,7 +15,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create']:
             return [permissions.IsAuthenticated()]  # waiter, or kiosk using a service account
-        if self.action in ['update', 'partial_update', 'destroy']:
+        if self.action in ['update', 'partial_update', 'destroy', 'accept', 'cancel']:
             return [IsWaiterOrAdmin()]
         return [permissions.IsAuthenticated()]
 
@@ -49,8 +49,14 @@ class OrderViewSet(viewsets.ModelViewSet):
         return self._transition(request, pk, Order.Status.CANCELLED)
 
 
-class OrderItemViewSet(viewsets.ModelViewSet):
-    """Kitchen-facing item-level updates: each dish moves through its own status."""
+class OrderItemViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Kitchen-facing item-level updates: each dish moves through its own status.
+
+    Read-only apart from the three status actions below. Items are created
+    through POST /api/orders/, and status changes must go through the actions
+    so the parent order's status is re-derived and role rules are enforced.
+    """
     queryset = OrderItem.objects.all().select_related('order', 'menu_item')
     serializer_class = OrderItemSerializer
 

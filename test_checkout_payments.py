@@ -83,6 +83,11 @@ class CashCalculatorTest(TestCase):
 
 class MobileMoneyTest(TestCase):
     def setUp(self):
+        from django.test import override_settings
+        # Don't let a local .env (e.g. MOBILE_MONEY_PROVIDER=direct) change what these tests exercise
+        self._override = override_settings(MOBILE_MONEY_PROVIDER='yo_payments')
+        self._override.enable()
+        self.addCleanup(self._override.disable)
         from accounts.models import User
         from restaurant.models import Table
         from menu.models import Category, MenuItem

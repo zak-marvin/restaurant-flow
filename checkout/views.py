@@ -259,8 +259,10 @@ def flutterwave_webhook(request):
     status = data.get('status')
 
     try:
-        payment = Payment.objects.get(flw_tx_ref=tx_ref)
-    except Payment.DoesNotExist:
+        # Charges are created with tx_ref "rflow-<payment id>" (see settle_table).
+        payment_id = int(str(tx_ref).rsplit('-', 1)[-1]) if str(tx_ref).startswith('rflow-') else None
+        payment = Payment.objects.get(id=payment_id, provider='flutterwave')
+    except (Payment.DoesNotExist, TypeError, ValueError):
         return JsonResponse({'error': 'unknown tx_ref'}, status=404)
 
     if payment.status == Payment.Status.PENDING:

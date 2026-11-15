@@ -16,6 +16,11 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['orders', 'received_by', 'paid_at']
 
     def validate(self, attrs):
+        if attrs.get('method') == Payment.Method.MOBILE_MONEY:
+            raise serializers.ValidationError(
+                "Mobile money must be taken through the cashier checkout page (/checkout/), "
+                "which sends the charge and waits for the provider to confirm it."
+            )
         orders = attrs.get('orders', [])
         if not orders:
             raise serializers.ValidationError("At least one order must be included in the payment.")

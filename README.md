@@ -360,11 +360,9 @@ curl http://localhost:8000/api/tables/ -H "Authorization: Bearer <access>"
 | POST | `/api/orders/` | Any | Place an order |
 | GET | `/api/orders/` | Any | List orders. Filters: `?table=<id>`, `?active=true` |
 | GET | `/api/orders/{id}/` | Any | Order with items and total |
-| POST | `/api/orders/{id}/accept/` | Intended: waiter/admin | `pending → accepted` |
-| POST | `/api/orders/{id}/cancel/` | Intended: waiter/admin | Cancel from `pending`, `accepted` or `preparing` |
+| POST | `/api/orders/{id}/accept/` | Waiter / admin | `pending → accepted` |
+| POST | `/api/orders/{id}/cancel/` | Waiter / admin | Cancel from `pending`, `accepted` or `preparing` |
 | PUT / PATCH / DELETE | `/api/orders/{id}/` | Waiter / admin | Edit notes and so on. `status` is read-only here |
-
-> See [Known issues](#known-issues-and-limitations): `accept` and `cancel` are currently reachable by any logged-in role.
 
 Place an order:
 
@@ -389,19 +387,19 @@ curl -X POST http://localhost:8000/api/orders/ \
 
 | Method | Endpoint | Who | Description |
 |---|---|---|---|
-| GET | `/api/order-items/` | Any | List items. `?kitchen_queue=true` excludes served and cancelled |
+| GET | `/api/order-items/` | Any | List items (read-only). `?kitchen_queue=true` excludes served and cancelled. Items are created via `POST /api/orders/` |
 | POST | `/api/order-items/{id}/start_preparing/` | Kitchen / admin | Item → `preparing` |
 | POST | `/api/order-items/{id}/mark_ready/` | Kitchen / admin | Item → `ready`, notifies waiters |
 | POST | `/api/order-items/{id}/serve/` | Waiter / admin | Item → `served` |
 
-All three actions re-derive the parent order's status.
+These three actions are the only way to change an item's status, and each re-derives the parent order's status.
 
 #### Payments
 
 | Method | Endpoint | Who | Description |
 |---|---|---|---|
-| POST | `/api/payments/` | Cashier / admin | Settle one or more **served** orders for one table |
-| GET | `/api/payments/` | Cashier / admin | Payment history |
+| POST | `/api/payments/` | Cashier / admin | Settle one or more **served** orders for one table (`cash` or `card`) |
+| GET | `/api/payments/`, `/api/payments/{id}/` | Cashier / admin | Payment history (read-only: payments cannot be edited or deleted) |
 
 ```bash
 curl -X POST http://localhost:8000/api/payments/ \
@@ -409,7 +407,7 @@ curl -X POST http://localhost:8000/api/payments/ \
   -d '{"table": 3, "order_ids": [12, 13], "amount": "41000.00", "method": "cash"}'
 ```
 
-Validation: at least one order; every order must belong to the table and be `served`; `amount` must exactly equal the orders' total. On success the orders become `paid`, and the table is freed if nothing else is unpaid. For mobile money with confirmation, use the [checkout page](#cashier-checkout-checkout) flow instead (see [Known issues](#known-issues-and-limitations)).
+Validation: at least one order; every order must belong to the table and be `served`; `amount` must exactly equal the orders' total. On success the orders become `paid`, and the table is freed if nothing else is unpaid. `mobile_money` is rejected on this endpoint with a `400`; mobile money must go through the [checkout page](#cashier-checkout-checkout) flow, which sends the charge and waits for provider confirmation.
 
 #### Notifications
 
@@ -514,7 +512,7 @@ Charges use non-blocking mode (so a worker is not held for the customer's 30 to 
 
 #### `flutterwave`
 
-Aggregator. Built and tested with mocked calls; set `FLUTTERWAVE_SECRET_KEY` (a TEST key auto-confirms Uganda mobile money charges after a few seconds). An optional webhook exists at `/checkout/webhook/flutterwave/` but see [Known issues](#known-issues-and-limitations).
+Aggregator. Built and tested with mocked calls; set `FLUTTERWAVE_SECRET_KEY` (a TEST key auto-confirms Uganda mobile money charges after a few seconds). An optional webhook exists at `/checkout/webhook/flutterwave/` (needs a public URL and `FLUTTERWAVE_WEBHOOK_HASH`); it finds the payment from the `rflow-<payment id>` reference.
 
 #### `direct`
 
@@ -561,7 +559,7 @@ Celery beat runs `orders.tasks.flag_stale_orders` **every 2 minutes**. It finds 
 | New order placed | Kitchen |
 | Item marked ready | Waiters |
 
-Devices register with `POST /api/notifications/register-device/`. To enable, set `FCM_CREDENTIALS_PATH` to a Firebase service-account JSON (Firebase Console → Project Settings → Service Accounts). If nothing is configured and no devices are registered, notifications are silently skipped. **Read the related note in [Known issues](#known-issues-and-limitations) before enabling it.**
+Devices register with `POST /api/notifications/register-device/`. To enable, set `FCM_CREDENTIALS_PATH` to a Firebase service-account JSON (Firebase Console → Project Settings → Service Accounts). If nothing is configured, or no devices are registered, notifications are skipped. A failed push is logged and never breaks the request that triggered it (for example placing an order).
 
 ---
 
@@ -610,12 +608,12 @@ erDiagram
 ## Testing
 
 ```bash
-python manage.py test test_api test_checkout test_checkout_payments test_chef test_kds test_order_sync_bug
+python manage.py test test_api test_checkout test_checkout_payments test_chef test_kds test_order_sync_bug test_security
 ```
 
 Name the modules explicitly: a bare `python manage.py test` would also pick up any stale duplicate test files if they are still in the tree.
 
-Result against a clean install of the pinned requirements (Django 4.2.30): **37 tests, all passing.**
+Result against a clean install of the pinned requirements (Django 4.2.30): **43 tests, all passing.**
 
 | Module | Covers |
 |---|---|
@@ -625,10 +623,9 @@ Result against a clean install of the pinned requirements (Django 4.2.30): **37 
 | `test_chef.py` | Role gating, create/edit/delete meals and photos, price validation |
 | `test_kds.py` | Login required, waiter blocked, full kitchen flow |
 | `test_order_sync_bug.py` | Orders no longer get stuck; finalised orders never resurrected; repair command |
+| `test_security.py` | Role checks on accept/cancel, read-only order items and payments, mobile money rejected on the REST endpoint, push failures don't break orders, Flutterwave webhook |
 
 Mobile money providers are **mocked**, so these tests make no network calls. Test the real sandbox HTTP calls yourself once you have keys.
-
-> **Tip:** `MobileMoneyTest` assumes the default provider. If your local `.env` sets `MOBILE_MONEY_PROVIDER=direct`, five of those tests fail with "Select MTN or Airtel". Run with `MOBILE_MONEY_PROVIDER=yo_payments python manage.py test …`, or wrap those tests in `override_settings`.
 
 ---
 
@@ -670,7 +667,7 @@ This codebase ships configured for local development. Before real customers use 
 - [ ] **Redis and Celery** if you want walkout detection, run a worker and beat as separate processes.
 - [ ] **Mobile money.** Move providers out of sandbox (`YO_PAYMENTS_USE_PRODUCTION=True`, or MTN Go-Live and `MTN_MOMO_CURRENCY=UGX`).
 - [ ] **Accounts.** Change every seeded password from `pass1234`.
-- [ ] **Fix the items in [Known issues](#known-issues-and-limitations)**, especially permissions and push notifications.
+- [ ] **Review [Known issues](#known-issues-and-limitations)** for the remaining limitations.
 
 The archive this README was written against contains no deployment files (no Render or Procfile config, no `DEPLOYMENT.md`, and no bootstrap-admin command), so this section is generic guidance rather than a record of a specific deployment.
 
@@ -678,30 +675,13 @@ The archive this README was written against contains no deployment files (no Ren
 
 ## Known issues and limitations
 
-Found while reading and running the code. None block local development; several matter before production.
+None of these block local development; the first two matter before production.
 
-**Permissions**
-
-1. **`accept` and `cancel` on orders are open to every logged-in role.** The `@action(permission_classes=[IsWaiterOrAdmin])` decorators are ignored because `OrderViewSet.get_permissions()` returns `IsAuthenticated` for any action it does not list. In testing, a kitchen user could accept an order and a cashier could cancel one. Fix: add `'accept'` and `'cancel'` to the waiter/admin branch of `get_permissions`.
-2. **`/api/order-items/` is a full `ModelViewSet`.** Only the three kitchen/serve actions are role-gated; any logged-in user can create, edit or delete items, and `status` is writable. A `PATCH {"status": "served"}` is accepted and bypasses the order-status sync and notifications. Fix: make `status` read-only on `OrderItemSerializer`, and restrict writes.
-3. **`/api/payments/` is a full `ModelViewSet`**, so payments can be edited or deleted by cashiers. Also, payments created through this endpoint are recorded as `successful` immediately even for `method: "mobile_money"`, with no charge made. Use the checkout page for verified mobile money.
-
-**Notifications**
-
-4. **FCM sending uses `messaging.send_multicast`, which no longer exists in current `firebase-admin` releases** (`requirements.txt` only sets a lower bound of `>=6.4`). With a recent install, once device tokens are registered `notify_role()` raises `AttributeError`. Because it is called inside order creation, a new order would fail with a 500 and roll back. Related: `FCM_AVAILABLE` becomes `True` whenever the library imports, even when no credentials were loaded. Fix: use `send_each_for_multicast`, only mark FCM available after `initialize_app` succeeds, and wrap sending in `try/except` so a push failure never breaks an order.
-
-**Payments**
-
-5. **The Flutterwave webhook looks up `Payment.flw_tx_ref`**, a field removed in migration `payments/0003`. Only relevant if `MOBILE_MONEY_PROVIDER=flutterwave` and the webhook is used; it should resolve the payment from the `rflow-<payment id>` reference instead. Yo! Payments and MTN rely on polling and are unaffected.
-6. Airtel direct integration is not built. Card payments are recorded manually.
-
-**Configuration and housekeeping**
-
-7. `.env.example` documents `DB_*` and `CORS_ALLOWED_ORIGINS`, which `settings.py` does not read as shipped (see [Going to production](#going-to-production)).
-8. Migrations were generated with **Django 6.0.6** but `requirements.txt` pins `<5.0`. Everything passes on 4.2.30, but the two should be aligned deliberately (either pin to what you develop on, or bump the pin).
-9. Five `MobileMoneyTest` tests fail if the local `.env` sets `MOBILE_MONEY_PROVIDER=direct` (see [Testing](#testing)).
-10. No customer-facing unauthenticated ordering endpoint and no table lookup by `qr_token` (see [Flutter notes](#qr-ordering-customer-kiosk)).
-11. The `/api/` root page lists only `tables`, since several routers are mounted at the same prefix. Use the endpoint tables above as the reference.
+1. **Configuration is not fully wired.** `.env.example` documents `DB_*` and `CORS_ALLOWED_ORIGINS`, which `settings.py` does not read as shipped (see [Going to production](#going-to-production)).
+2. **Django version.** Migrations were generated with Django 6.0.6 but `requirements.txt` pins `<5.0`. Everything passes on 4.2.30; align the two deliberately (pin to what you develop on, or bump the pin).
+3. **No customer-facing unauthenticated ordering** and no table lookup by `qr_token` (see [Flutter notes](#qr-ordering-customer-kiosk)).
+4. **Airtel direct integration is not built**, and card payments are recorded manually.
+5. **The `/api/` root page lists only `tables`**, since several routers are mounted at the same prefix. Use the endpoint tables above as the reference.
 
 ---
 
@@ -725,4 +705,4 @@ Found while reading and running the code. None block local development; several 
 
 - Never commit `.env`. It is listed in `.gitignore`, but the archive this README was written against included a populated `.env` (MTN sandbox credentials) plus `db.sqlite3` and uploaded media. If it was shared or pushed anywhere, rotate those keys and keep the file out of version control.
 - Change all seeded passwords and set a unique `SECRET_KEY` before exposing the app beyond your machine.
-- The Flutterwave webhook authenticates with the `verif-hash` header, so keep `FLUTTERWAVE_WEBHOOK_HASH` secret and set it if you use that provider.# restaurant-flow
+- The Flutterwave webhook authenticates with the `verif-hash` header, so keep `FLUTTERWAVE_WEBHOOK_HASH` secret and set it if you use that provider.
